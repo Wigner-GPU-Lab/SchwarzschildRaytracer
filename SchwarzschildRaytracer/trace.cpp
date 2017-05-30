@@ -200,27 +200,20 @@ std::vector<double> cmf =
 
 //The following code is based on: http://www.fourmilab.ch/documents/specrend/specrend.c
 struct colourSystem {
-    char *name;     	    	    /* Colour system name */
-    double xRed, yRed,	    	    /* Red x, y */
-           xGreen, yGreen,  	    /* Green x, y */
+    const char *name;               /* Colour system name */
+    double xRed, yRed,              /* Red x, y */
+           xGreen, yGreen,          /* Green x, y */
            xBlue, yBlue,    	    /* Blue x, y */
            xWhite, yWhite,  	    /* White point x, y */
 	   gamma;   	    	    /* Gamma correction for system */
 };
 
-#define IlluminantC     0.3101, 0.3162	    	/* For NTSC television */
 #define IlluminantD65   0.3127, 0.3291	    	/* For EBU and SMPTE */
-#define IlluminantE 	0.33333333, 0.33333333  /* CIE equal-energy illuminant */
 #define GAMMA_REC709	709		                /* Rec. 709 */
 
 static struct colourSystem
                   /* Name                  xRed    yRed    xGreen  yGreen  xBlue  yBlue    White point        Gamma   */
-    NTSCsystem  =  { "NTSC",               0.67,   0.33,   0.21,   0.71,   0.14,   0.08,   IlluminantC,    GAMMA_REC709 },
-    EBUsystem   =  { "EBU (PAL/SECAM)",    0.64,   0.33,   0.29,   0.60,   0.15,   0.06,   IlluminantD65,  GAMMA_REC709 },
-    SMPTEsystem =  { "SMPTE",              0.630,  0.340,  0.310,  0.595,  0.155,  0.070,  IlluminantD65,  GAMMA_REC709 },
-    HDTVsystem  =  { "HDTV",               0.670,  0.330,  0.210,  0.710,  0.150,  0.060,  IlluminantD65,  GAMMA_REC709 },
-    CIEsystem   =  { "CIE",                0.7355, 0.2645, 0.2658, 0.7243, 0.1669, 0.0085, IlluminantE,    GAMMA_REC709 },
-    Rec709system = { "CIE REC 709",        0.64,   0.33,   0.30,   0.60,   0.15,   0.06,   IlluminantD65,  GAMMA_REC709 };
+    HDTVsystem  =  { "HDTV",               0.670,  0.330,  0.210,  0.710,  0.150,  0.060,  IlluminantD65,  GAMMA_REC709 };
 
 template<typename T>
 void xyz_to_rgb(struct colourSystem &cs,
@@ -393,20 +386,20 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
     const auto rdout = 8.00*rs; //Outer radius of disk in Schwarzschild units
     const auto hdisk = 0.05*rs; //Disk thickness in Schwarzschild units
 
-    const auto up = Vec<double>{0.0, 1.0, 0.0};
+    // const auto up = Vec<double>{0.0, 1.0, 0.0};
 
     const Vec<double> bh0 = {0.0, 0.0, 0.0};//{+1.5, 0.0, +3.15};
-    const Vec<double> bh1 = {-1.5, 0.0, -3.15};
+    // const Vec<double> bh1 = {-1.5, 0.0, -3.15};
 
     //Disk velocity vector at location
     auto vel_at = [&](Vec<double> const& p)
     {
         auto b1 = p - bh0;
-        auto b2 = p - bh1;
+        // auto b2 = p - bh1;
         auto R1 = distance(p, bh0);
-        auto R2 = distance(p, bh1);
+        // auto R2 = distance(p, bh1);
         auto V1 = sqrt(params.M*params.G / (R1 - rs));
-        auto V2 = sqrt(params.M*params.G / (R2 - rs));
+        // auto V2 = sqrt(params.M*params.G / (R2 - rs));
 
         return xzortho(b1)/length(b1)*V1;
 
@@ -452,7 +445,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                     //Direction vectors for changing into orbital plane determined by the radius and velocity vectors
                     auto n = normalize(cross(nr0, nv0)); //normal of movement plane
                     auto d = nr0;                        //radial direction
-                    auto d0 = normalize(cross(up, n));   //radial direction in the plane of the disk
+                    // auto d0 = normalize(cross(up, n));   //radial direction in the plane of the disk
                     auto o = normalize(cross(n, d));     //transverse direction
                 
                     //Initial values:
@@ -521,7 +514,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
 
                                 auto dvel = vel_at(Vec<double>{x, y, z});
                                 auto sqmag = sqlength(dvel);
-                                auto mag = sqrt(sqmag);
+                                // auto mag = sqrt(sqmag);
 
                                 auto gamma = 1.0 / sqrt(1.0 - sqmag);
 
@@ -545,7 +538,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                                     Flux = 3.0 * params.M * 0.01 / (8.0*Pi*(rm-3.0)*S*sq(rm)) * ( S - sqrt6 + sqrt3/3.0*std::log( (S + sqrt3) * (sqrt6 - sqrt3) / ( (S - sqrt3) * (sqrt6 + sqrt3) ) ) );
                                 }
 
-                                auto colmin = color.min();
+                                // auto colmin = color.min();
                                 color = color + color_alpha*black_body_xyz( (float)(T * (Dz * D) ) )*Flux*density;
 
                                 //auto beta = 
@@ -579,8 +572,8 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                         auto r = sqrt(sq(x)+sq(y)+sq(z));
                         x /= r; y /= r; z /= r;
 
-                        auto theta_tmp = acos(z);
-                        auto phi_tmp = Pi + atan2(y, x);
+                        // auto theta_tmp = acos(z);
+                        // auto phi_tmp = Pi + atan2(y, x);
                         auto tr = (int)(acos(z)/deg);
                         auto pr = 180+(int)(atan2(y, x)/deg);
                         auto mi = pr*180+tr;
@@ -624,7 +617,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
 
                     if( length(color) != 0.0f )
                     {
-                        auto cs = (color.x+color.y+color.z);
+                        // auto cs = (color.x+color.y+color.z);
                         for(int yi=-20; yi<=20; ++yi)
                         {
                             for(int xi=-20; xi<=20; ++xi)
@@ -729,7 +722,7 @@ int main(int argc, char* argv[])
     int width = 800, height = 800;
     sf::RenderWindow window(sf::VideoMode(width, height), "Gravitation Raytrace");
 
-	sf::ContextSettings settings = window.getSettings();
+	// sf::ContextSettings settings = window.getSettings();
 
 	sf::RectangleShape rect(sf::Vector2f(width*1.0f, height*1.0f));
 	rect.setFillColor(sf::Color(255, 255, 255));
@@ -757,7 +750,7 @@ int main(int argc, char* argv[])
     std::vector<Star> stars(100000);
     std::vector<std::vector<int>> starmap(360*180);
 
-    for(int i=0; i<stars.size(); ++i)
+    for(size_t i=0; i<stars.size(); ++i)
     {
         float T;
         Vec<float> bb;
@@ -844,7 +837,7 @@ int main(int argc, char* argv[])
     for(int l=2; l<=8; ++l)
     {
         auto f = pow(2.0, 1.0*l);
-        auto rf = 1.0/f;
+        // auto rf = 1.0/f;
         for(int n=0; n<125*f; ++n)
         {
             auto y0 = (int)(sq(sq(gen_random_value_in_interval(0.0, 1.0)))*(diskH-15));
