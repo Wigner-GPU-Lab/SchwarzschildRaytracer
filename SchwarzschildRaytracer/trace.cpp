@@ -46,6 +46,9 @@ template<typename T, typename U> auto operator*( Vec<T> const& u, U      const& 
 template<typename T, typename U> auto operator*( U      const& c, Vec<T> const& u ){ return Vec<T>{(T)(u.x*c), (T)(u.y*c), (T)(u.z*c)}; }
 template<typename T, typename U> auto operator/( Vec<T> const& u, U      const& c ){ return Vec<T>{(T)(u.x/c), (T)(u.y/c), (T)(u.z/c)}; }
 
+auto sq   = [](auto const& x){ return x*x; };
+auto cube = [](auto const& x){ return x*x*x; };
+
 template<typename T> auto dot( Vec<T> const& u, Vec<T> const& v ){ return u.x*v.x + u.y*v.y + u.z*v.z; }
 template<typename T> auto cross( Vec<T> const& u, Vec<T> const& v ){ return Vec<T>{u.y*v.z-u.z*v.y, u.z*v.x-u.x*v.z, u.x*v.y-u.y*v.x}; }
 template<typename T> auto length( Vec<T> const& u ){ return sqrt(dot(u, u)); }
@@ -326,9 +329,6 @@ auto black_body_xyz( T const& Temp )
     }
     return sum;//convert_xyz_to_rgb(sum);
 }
-
-auto sq   = [](auto const& x){ return x*x; };
-auto cube = [](auto const& x){ return x*x*x; };
 
 struct Params
 {
@@ -720,7 +720,11 @@ auto gen_random_theta_phi = []
     return ThetaPhi<double>{std::acos(1.0-2.0*dis(gen)), 2.0*Pi*dis(gen)};
 };
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
+#if _WIN32
+int wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
+#else
+int main(int argc, char* argv[])
+#endif
 {
     int width = 800, height = 800;
     sf::RenderWindow window(sf::VideoMode(width, height), "Gravitation Raytrace");
@@ -732,14 +736,23 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	rect.setOutlineColor(sf::Color(255, 255, 255));
 
 	sf::Font font;
+#if _WIN32
 	if (!font.loadFromFile("C:\\Windows\\Fonts\\arial.ttf")){ return -1; }
+#else
+    if (!font.loadFromFile("/usr/share/fonts/truetype/msttcorefonts/arial.ttf")){ return -1; }
+#endif
 
 	sf::Text text;
 	text.setFont(font); // font is a sf::Font
 	text.setPosition(30, 30);
 	text.setString("0");
 	text.setCharacterSize(12);
-	text.setFillColor(sf::Color(0, 255, 0));
+#if _WIN32
+    text.setFillColor(sf::Color(0, 255, 0));
+#else
+	text.setColor(sf::Color(0, 255, 0));
+#endif
+
 
     std::vector<Star> stars(100000);
     std::vector<std::vector<int>> starmap(360*180);
