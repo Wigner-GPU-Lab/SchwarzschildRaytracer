@@ -384,7 +384,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
 
     const auto rdin  = 3.00*rs; //Inner radius of disk in Schwarzschild units
     const auto rdout = 8.00*rs; //Outer radius of disk in Schwarzschild units
-    const auto hdisk = 0.05*rs; //Disk thickness in Schwarzschild units
+    const auto hdisk = 0.04*rs; //Disk thickness in Schwarzschild units
 
     // const auto up = Vec<double>{0.0, 1.0, 0.0};
 
@@ -417,9 +417,10 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
         Vec<float> color;
         float color_alpha;
         
-        for(double bx0=0.0; bx0<blocksize; bx0 += 1.0/2.0)
+        const double block_div = 4.0;
+        for(double bx0=0.5/block_div; bx0<blocksize; bx0 += 1.0/block_div)
         {
-            for(double by0=0.0; by0<blocksize; by0 += 1.0/2.0)
+            for(double by0=0.5/block_div; by0<blocksize; by0 += 1.0/block_div)
             {
                 //double x00 = disbl(gen), y00 = disbl(gen);
                 double x0 = bx0;
@@ -478,6 +479,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                     auto last = r0;
                     auto dl = 0.0;
                     Vec<double> rrn;
+                    auto Rcum = 0.0;
                     while(R < Rlim && k < klim)
                     {
                         auto Rdotl = Rdot;
@@ -496,13 +498,14 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                             auto z = rrn.z;
                             auto plane_sqr = sq(x)+sq(z);
                             dl = length(rrn-last);
+                            Rcum += dl;
 
-                            if( R < 3.0 * rs ){ lambda /= 8.0; }
-                            else if( R < 2.5 * rs ){ lambda /= 16.0; /*if(abs(lasty) < 0.1*rs){ lambda /= 55.0; }else{ lambda /= 25.0; }*/ }
+                            if( R < 3.0 * rs ){ lambda /= 1.75; }
+                            else if( R < 2.5 * rs ){ lambda /= 4.0; /*if(abs(lasty) < 0.1*rs){ lambda /= 55.0; }else{ lambda /= 25.0; }*/ }
 
                             if( sq(rdin) <= plane_sqr && plane_sqr <= sq(rdout) && sq(y) <= sq(4.5*hdisk) )
                             {
-                                lambda = lambda0 / 24.0;
+                                lambda = lambda0 / 9.0;
 
                                 //sample disk density:
                                 auto disk_angle = (int)((Pi + atan2(x, z))/(2.0*Pi)*diskHeight);
@@ -510,7 +513,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                                 if(disk_rad >= diskWidth){ disk_rad = diskWidth-1; }
                                 if(disk_angle >= diskHeight){ disk_angle = diskHeight-1; }
                                 disk_rad = diskWidth-1 - disk_rad;
-                                auto density = 1.0f*(float)dl*disk[disk_rad*diskHeight+disk_angle]*exp(-sq((float)y/(float)hdisk));
+                                auto density = 1.0f*(float)dl*disk[disk_rad*diskHeight+disk_angle]*(1.0f-(float)abs(y/hdisk));
 
                                 auto dvel = vel_at(Vec<double>{x, y, z});
                                 auto sqmag = sqlength(dvel);
@@ -535,20 +538,19 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                                     auto S = sqrt(rm);
                                     auto sqrt3 = sqrt(3.0);
                                     auto sqrt6 = sqrt(6.0);
-                                    Flux = 3.0 * params.M * 0.01 / (8.0*Pi*(rm-3.0)*S*sq(rm)) * ( S - sqrt6 + sqrt3/3.0*std::log( (S + sqrt3) * (sqrt6 - sqrt3) / ( (S - sqrt3) * (sqrt6 + sqrt3) ) ) );
+                                    Flux = 3.0 * params.M * 1.0 / (8.0*Pi*(rm-3.0)*S*sq(rm)) * ( S - sqrt6 + sqrt3/3.0*std::log( (S + sqrt3) * (sqrt6 - sqrt3) / ( (S - sqrt3) * (sqrt6 + sqrt3) ) ) );
                                 }
 
                                 // auto colmin = color.min();
-                                color = color + color_alpha*black_body_xyz( (float)(T * (Dz * D) ) )*Flux*density;
+                                color = color + color_alpha*black_body_xyz( (float)(T * (Dz * D) ) )*Flux*density*2.0e1f/sq((float)Rcum);;
 
                                 //auto beta = 
                                 color_alpha *= /*(1.0f - 4.0f*dl/hdisk)**/0.99965f*(1.0f-sqrt(density));//0.99
 
-                                if(color_alpha <= 0.0005f){ color_alpha = 0.0005f; hit = true; break; }
+                                if(color_alpha <= 0.0001f){ color_alpha = 0.0001f; hit = true; break; }
                             }
                             
                         }
-
 
                         phi  += lambda * h0 / sq(R);
                         Rdot += lambda * (params.M / sq(R*rho) * (sq(Rdotl) - sq(e0)) + sq(h0*rho)/cube(R));
@@ -556,6 +558,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
 
                         k += 1;
                     }
+
                     if( !hit )
                     {
                         auto rr = rot_around(r0, n, phi);
@@ -601,9 +604,9 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                             auto const& star = stars[starblock[ss]];
                             if(dmin < star.d)
                             {
-                                if(color_alpha > 0.0005f)
+                                if(color_alpha > 0.0001f)
                                 {
-                                    color = color + 1e-9f*pow(color_alpha, 10.0f)*star.colxyz;
+                                    color = color + 1e-12f*pow(color_alpha, 14.0f)*star.colxyz;
                                 }
                                 else
                                 {
@@ -614,22 +617,27 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                     }
 
                     auto Lo = [](auto const& x, auto const& w){ return 1.0 / (w*(1.0 + sq(sq(x/w)))); };
+                    auto Bump = [](auto const& x, auto const& w)
+                    {
+                        if(abs(x) > w){ return 0.0; }
+                        return exp(-1.0/(1.0 + sq(abs(x)/w)));
+                    };
 
                     if( length(color) != 0.0f )
                     {
                         // auto cs = (color.x+color.y+color.z);
-                        for(int yi=-20; yi<=20; ++yi)
+                        for(int yi=-24; yi<=24; ++yi)
                         {
-                            for(int xi=-20; xi<=20; ++xi)
+                            for(int xi=-24; xi<=24; ++xi)
                             {
                                 auto xp = (int)(25+x0+xi);
                                 auto yp = (int)(25+y0+yi);
-                                auto Ex = -(sq(xi)+sq(yi))/2.0;
+                                auto Ex = (float)(sq(xi)+sq(yi));
                                 //auto A = (1.0 + pow(-Ex*(cs / 5e-3), 0.2));
-                                auto dec = exp(Ex / sq(4.0));
-                                auto ratx = (float)(dec*Lo(Ex, 0.05*0.74));//(A*exp(Ex/sq(0.25*0.74)));
-                                auto raty = (float)(dec*Lo(Ex, 0.05*0.77));//(A*exp(Ex/sq(0.25*0.77)));
-                                auto ratz = (float)(dec*Lo(Ex, 0.05*0.89));//(A*exp(Ex/sq(0.25*0.89)));
+                                auto dec = exp(-0.5*Ex/sq(24.0/5.5))*Bump(sqrt(Ex), 24.0f);//(1.0f - tanh(Ex-10.0f))*(1.0f - sq(sqrt(Ex)/20.0f));//exp(Ex / sq(4.0));
+                                auto ratx = (float)(dec*Lo(-(Ex)/2.0f, 0.1*0.74));//(A*exp(Ex/sq(0.25*0.74)));
+                                auto raty = (float)(dec*Lo(-(Ex)/2.0f, 0.1*0.77));//(A*exp(Ex/sq(0.25*0.77)));
+                                auto ratz = (float)(dec*Lo(-(Ex)/2.0f, 0.1*0.89));//(A*exp(Ex/sq(0.25*0.89)));
                                 if( xp >= 0 && yp >= 0 && xp < blocksize+50 && yp < blocksize+50 )
                                 {
                                     auto c0 = tmpxyz[yp*(blocksize+50)+xp];
@@ -747,7 +755,7 @@ int main(int argc, char* argv[])
 #endif
 
 
-    std::vector<Star> stars(100000);
+    std::vector<Star> stars(200000);
     std::vector<std::vector<int>> starmap(360*180);
 
     for(size_t i=0; i<stars.size(); ++i)
@@ -762,25 +770,25 @@ int main(int argc, char* argv[])
             const auto spread = 0.7f;
             auto TI = 1.0f;
             auto giant = gen_random_value_in_interval(0.0, 100.0);
-            auto var = 10000.0f*pow(10.0f, (float)gen_random_value_in_interval(0.5f, 10.5f));
+            auto var = 20000.0f*pow(10.0f, (float)gen_random_value_in_interval(0.5f, 10.5f));
             dg = 1.0;
             if( giant > 98.9 )
             {
                 //Giant
                 T = (float)(Tmag*gen_random_value_around(0.0, spread));
-                TI = 1e5f * var;
-                dg = 2.8;
+                TI = 1e2f * var;
+                dg = 2.2;
             }
             else if(giant > 95.0)
             {
                 T = (float)(Tmag*gen_random_value_around(0.0, spread));
-                TI = 5e5f * var;
-                dg = 2.1;
+                TI = 5e1f * var;
+                dg = 1.8;
             }
             else if(giant > 92.0)
             {
                 T = (float)(Tmag*gen_random_value_around(0.0, spread));
-                TI = 2e3f * var;
+                TI = 1e1f * var;
                 dg = 1.25;
             }
             else
@@ -803,7 +811,7 @@ int main(int argc, char* argv[])
                 bb = bb + black_body_xyz(T2)*pow(10.0f, (float)gen_random_value_in_interval(0.5f, 10.5f));
             }
             bb = bb / sqr;
-            if( bb.sum() > 1e-10 ){ accepted = true; }
+            if( bb.sum() > 1e-8 ){ accepted = true; }
         }
         
         auto as = gen_random_theta_phi();
@@ -864,13 +872,13 @@ int main(int argc, char* argv[])
     Params params;
     params.G = 1.0;
     params.M = 1.0;
-    params.fovw = 75.0;
-    params.zcam = 30.0;
-    params.ycam = -2.00;
-    params.T0disk = 3900.0;
+    params.fovw = 90.0;
+    params.zcam = 32.0;
+    params.ycam = -2.15;
+    params.T0disk = 4200.0;
 
     float Ifactor = 133.657e-6;
-    float Iexp = 0.225f;
+    float Iexp = 0.5f;
     float minI, maxI;
 
     bool trace_stop = false;
