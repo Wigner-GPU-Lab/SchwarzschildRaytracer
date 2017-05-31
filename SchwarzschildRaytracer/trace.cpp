@@ -503,7 +503,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                             if( R < 3.0 * rs ){ lambda /= 1.75; }
                             else if( R < 2.5 * rs ){ lambda /= 4.0; /*if(abs(lasty) < 0.1*rs){ lambda /= 55.0; }else{ lambda /= 25.0; }*/ }
 
-                            if( sq(rdin) <= plane_sqr && plane_sqr <= sq(rdout) && sq(y) <= sq(4.5*hdisk) )
+                            if( sq(rdin) <= plane_sqr && plane_sqr <= sq(rdout) && sq(y) <= sq(hdisk) )
                             {
                                 lambda = lambda0 / 9.0;
 
@@ -616,7 +616,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                         }
                     }
 
-                    auto Lo = [](auto const& x, auto const& w){ return 1.0 / (w*(1.0 + sq(sq(x/w)))); };
+                    auto Lo = [](auto const& x, auto const& w){ return 1.0 / (w*(1.0 + sq(x/w))); };
                     auto Bump = [](auto const& x, auto const& w)
                     {
                         if(abs(x) > w){ return 0.0; }
