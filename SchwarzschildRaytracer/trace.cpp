@@ -14,7 +14,7 @@ static const double deg = Pi / 180.0;
 static const int diskWidth = 1024+512;
 static const int diskHeight = 256*8;
 
-static const int nths = std::thread::hardware_concurrency();
+static const int nths = 1+std::thread::hardware_concurrency();
 
 template<typename T> struct Vec
 {
@@ -370,9 +370,16 @@ struct TraceParams
             if(bx > p){ bx = 0; by += 1;}else{ bx += 1; }
         }
     }
+
+    float ratio_complete() const
+    {
+        const auto p = w/blocksize;
+        const auto q = h/blocksize;
+        return (by*p+bx)/((float)(p+2)*q);
+    }
 };
 
-void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std::vector<int>> const& starmap, std::vector<Vec<float>>& xyz, std::vector<sf::Color>& res, std::vector<float> const& disk, Params const& params)
+void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std::vector<size_t>> const& starmap, std::vector<Vec<float>>& xyz, std::vector<sf::Color>& res, std::vector<float> const& disk, Params const& params)
 {
     std::random_device rd;
     std::mutex mxyz;
@@ -382,11 +389,11 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
     const double rho_obs = sqrt(1. - rs/robs);
     const double da = params.fovw / (double)tpar.w;
 
-    const auto rdin  = 3.00*rs; //Inner radius of disk in Schwarzschild units
-    const auto rdout = 8.00*rs; //Outer radius of disk in Schwarzschild units
-    const auto hdisk = 0.04*rs; //Disk thickness in Schwarzschild units
+    const auto rdin  = 3.001*rs; //Inner radius of disk in Schwarzschild units
+    const auto rdout = 8.000*rs; //Outer radius of disk in Schwarzschild units
+    const auto hdisk = 0.040*rs; //Disk thickness in Schwarzschild units
 
-    // const auto up = Vec<double>{0.0, 1.0, 0.0};
+    const auto up = Vec<double>{0.0, 1.0, 0.0};
 
     const Vec<double> bh0 = {0.0, 0.0, 0.0};//{+1.5, 0.0, +3.15};
     // const Vec<double> bh1 = {-1.5, 0.0, -3.15};
@@ -398,7 +405,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
         // auto b2 = p - bh1;
         auto R1 = distance(p, bh0);
         // auto R2 = distance(p, bh1);
-        auto V1 = sqrt(params.M*params.G / (R1 - rs));
+        auto V1 = 1.0 / sqrt(2.0 * (R1/rs - 1.0));
         // auto V2 = sqrt(params.M*params.G / (R2 - rs));
 
         return xzortho(b1)/length(b1)*V1;
@@ -439,12 +446,19 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
         
                     //Initial position, velocity and direction vectors
                     auto r0 = Vec<double>{0.0,     params.ycam, params.zcam};
-                    auto v00 = Vec<double>{sin(wx), sin(wy),     -1.0};
-                    auto nv0 = normalize(v00);
                     auto nr0 = normalize(r0);
+                    auto camright = normalize(cross(up, nr0));
+                    auto camlook = -1.0*nr0;
+                    auto camup = normalize(cross(camright, camlook));
+
+                    auto v00tmp = rot_around(camlook, camright, wy);
+                    auto v00 = normalize(rot_around(v00tmp, camup, -wx));
+                    //auto v00 = Vec<double>{sin(wx), sin(wy),     -1.0};
+                    //auto nv0 = normalize(v00);
+                    
 
                     //Direction vectors for changing into orbital plane determined by the radius and velocity vectors
-                    auto n = normalize(cross(nr0, nv0)); //normal of movement plane
+                    auto n = normalize(cross(nr0, v00)); //normal of movement plane
                     auto d = nr0;                        //radial direction
                     // auto d0 = normalize(cross(up, n));   //radial direction in the plane of the disk
                     auto o = normalize(cross(n, d));     //transverse direction
@@ -480,6 +494,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                     auto dl = 0.0;
                     Vec<double> rrn;
                     auto Rcum = 0.0;
+                    double Flux = 1.0;
                     while(R < Rlim && k < klim)
                     {
                         auto Rdotl = Rdot;
@@ -496,7 +511,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                             auto x = rrn.x;
                             auto y = rrn.y;
                             auto z = rrn.z;
-                            auto plane_sqr = sq(x)+sq(z);
+                            auto plane_sqr = sq(x)+sq(z)+sq(y);
                             dl = length(rrn-last);
                             Rcum += dl;
 
@@ -523,7 +538,13 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
 
                                 auto T = /*mag * */params.T0disk;
                        
-                                auto KT = normalize(rot_around(o, n, phi)) * h0 / R;
+                                auto kTtmp = normalize(rot_around(o, n, phi));
+                                auto kRtmp = normalize(rot_around(d, n, phi));
+                                auto KT = kTtmp * h0 / R;
+                                auto KR = kRtmp * Rdot;
+                                auto K = normalize(KT + KR);
+                                //Boost back is missing...
+                                auto view_angle_corr = sin(angle(K, Vec<double>{K.x, 0.0, K.z}));
 
                                 auto q = dot(dvel, KT)/(gamma*rho);
                             
@@ -532,7 +553,7 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                                 //Doppler factor due to gravitational well
                                 auto Dz = rho_obs / rho;
 
-                                double Flux = 1.0;
+                                Flux = 1.0;
                                 {
                                     auto rm = R/params.M;
                                     auto S = sqrt(rm);
@@ -541,12 +562,12 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                                     Flux = 3.0 * params.M * 1.0 / (8.0*Pi*(rm-3.0)*S*sq(rm)) * ( S - sqrt6 + sqrt3/3.0*std::log( (S + sqrt3) * (sqrt6 - sqrt3) / ( (S - sqrt3) * (sqrt6 + sqrt3) ) ) );
                                 }
 
-                                // auto colmin = color.min();
-                                color = color + color_alpha*black_body_xyz( (float)(T * (Dz * D) ) )*Flux*density*2.0e1f/sq((float)Rcum);;
+                                color = color + color_alpha*black_body_xyz( (float)(T * (Dz * D) ) )*Flux*view_angle_corr*density*2.0e1f/sq((float)Rcum);
 
-                                //auto beta = 
                                 color_alpha *= /*(1.0f - 4.0f*dl/hdisk)**/0.99965f*(1.0f-sqrt(density));//0.99
 
+                                //color = color + color_alpha*black_body_xyz( (float)(T) )*Flux;//*2.0e1f/sq((float)Rcum)*view_angle_corr;
+                                
                                 if(color_alpha <= 0.0001f){ color_alpha = 0.0001f; hit = true; break; }
                             }
                             
@@ -558,7 +579,6 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
 
                         k += 1;
                     }
-
                     if( !hit )
                     {
                         auto rr = rot_around(r0, n, phi);
@@ -626,9 +646,10 @@ void trace_n(TraceParams& tpar, std::vector<Star> const& stars, std::vector<std:
                     if( length(color) != 0.0f )
                     {
                         // auto cs = (color.x+color.y+color.z);
-                        for(int yi=-24; yi<=24; ++yi)
+                        static const int L = 24;
+                        for(int yi=-L; yi<=L; ++yi)
                         {
-                            for(int xi=-24; xi<=24; ++xi)
+                            for(int xi=-L; xi<=L; ++xi)
                             {
                                 auto xp = (int)(25+x0+xi);
                                 auto yp = (int)(25+y0+yi);
@@ -727,8 +748,8 @@ int wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int n
 int main(int argc, char* argv[])
 #endif
 {
-    int width = 800, height = 800;
-    sf::RenderWindow window(sf::VideoMode(width, height), "Gravitation Raytrace");
+    int width = 1920, height = 1080;
+    sf::RenderWindow window(sf::VideoMode(width, height), "Gravitation Raytrace"/*, sf::Style::None*/);
 
 	// sf::ContextSettings settings = window.getSettings();
 
@@ -756,7 +777,7 @@ int main(int argc, char* argv[])
 
 
     std::vector<Star> stars(200000);
-    std::vector<std::vector<int>> starmap(360*180);
+    std::vector<std::vector<size_t>> starmap(360*180);
 
     for(size_t i=0; i<stars.size(); ++i)
     {
@@ -821,7 +842,7 @@ int main(int argc, char* argv[])
         auto th = (int)(as.theta/deg);
         auto ph = (int)(as.phi/deg);
 
-        auto helper = [&](int t, int p, int idx) mutable { if(p >= 0 && p <= 359 && t >= 0 && t <= 179){ starmap[p*180+t].push_back(idx); } };
+        auto helper = [&](int t, int p, size_t idx) mutable { if(p >= 0 && p <= 359 && t >= 0 && t <= 179){ starmap[p*180+t].push_back(idx); } };
         helper(th, ph-1, i);
         helper(th, ph  , i);
         helper(th, ph+1, i);
@@ -851,7 +872,7 @@ int main(int argc, char* argv[])
             auto y0 = (int)(sq(sq(gen_random_value_in_interval(0.0, 1.0)))*(diskH-15));
             auto h = (int)gen_random_value_in_interval(1, 2+f/150.);
             auto x0 = gen_random_value_in_interval(0, diskW);
-            auto w = gen_random_value_in_interval(0.02*diskW, 0.1*diskW*(0.1+(double)y0/(1.0*diskH)));
+            auto w = gen_random_value_in_interval(/*0.02*diskW*/0.0, 0.1*diskW*(0.1+(double)y0/(1.0*diskH)));
             for(int yn=y0; yn<y0+h; ++yn)
             {
                 
@@ -872,16 +893,18 @@ int main(int argc, char* argv[])
     Params params;
     params.G = 1.0;
     params.M = 1.0;
-    params.fovw = 90.0;
+    params.fovw = 70.0;
     params.zcam = 32.0;
-    params.ycam = -2.15;
-    params.T0disk = 4200.0;
+    params.ycam = -1.95;//-1.95;
+    params.T0disk = 9000.0;
 
-    float Ifactor = 133.657e-6;
-    float Iexp = 0.5f;
+    float Ifactor = 1.0;//133.657e-6;
+    float Iexp = 0.5f;//0.5f;
     float minI, maxI;
 
     bool trace_stop = false;
+    bool image_saved = false;
+    int image_id = 0;
 
     TraceParams tpar;
     tpar.finish = &trace_stop;
@@ -925,7 +948,7 @@ int main(int argc, char* argv[])
             minI = I > 0 ? std::min(minI, I) : minI; return std::max(acc, I);
         });
         maxI *= Ifactor;
-        minI *= 1.e1f;
+        //minI *= 1.e1f;
 
         auto lmaxI = maxI;
         auto lminI = minI;
@@ -947,10 +970,23 @@ int main(int argc, char* argv[])
         tex.loadFromImage(img);
         sprite.setTexture(tex, true);
         sprite.setPosition( sf::Vector2f(0, 0) );
+
+        if( trace_stop && !image_saved )
+        {
+            img.saveToFile(std::string("result") + std::to_string(image_id) + ".png");
+            image_id += 1;
+            image_saved = true;
+        }
     };
 
     auto draw_text = [&]
     {
+        if(!trace_stop)
+        {
+            text.setString( std::to_string(tpar.ratio_complete()*100.0).substr(0, 6) + std::string("% complete") );
+            text.setPosition(30, 30);
+            window.draw(text);
+        }
         /*text.setString(std::string("Mass = ") + std::to_string(params.M));
         text.setPosition(30, 30);
         window.draw(text);
@@ -1002,6 +1038,11 @@ int main(int argc, char* argv[])
 				rect.setSize( sf::Vector2f(width*1.0f, height*1.0f) );
                 resize_img();
 			}
+            else if(event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Key::Space)
+            {
+                img.saveToFile(std::string("result") + std::to_string(image_id) + ".png");
+                image_id += 1;
+            }
         }
 
         update_img();
